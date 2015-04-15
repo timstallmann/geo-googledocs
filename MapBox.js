@@ -5,25 +5,8 @@ var ss = SpreadsheetApp.getActiveSpreadsheet(),
     settings = {};
     
 var geocoders = {
-    yahoo: {
-      query: function(query, key) {
-        return 'http://where.yahooapis.com/geocode?appid=' +
-          key + '&flags=JC&q=' + query;
-      },
-      parse: function(r) {
-        try {
-          return {
-            longitude: r.ResultSet.Results[0].longitude,
-            latitude: r.ResultSet.Results[0].latitude,
-            accuracy: r.ResultSet.Results[0].quality
-          }
-        } catch(e) {
-          return { longitude: '', latitude: '', accuracy: '' };
-        }
-      }
-    },
     mapquest: {
-      query: function(query, key) {
+      query: function(query) {
         return 'http://open.mapquestapi.com/nominatim/v1/search?format=json&limit=1&q=' + query;
       },
       parse: function(r) {
@@ -34,24 +17,7 @@ var geocoders = {
             accuracy: r[0].type
           }
         } catch(e) {
-          return { longitude: '', latitude: '', accuracy: '' };
-        }
-      }
-    },
-    cicero: {
-      query: function(query, key) {
-        return 'https://cicero.azavea.com/v3.1/legislative_district?format=json&key=' + 
-          key + '&search_loc=' + query; 
-      },
-      parse: function(r) {
-        try {
-          return {
-            longitude: r.response.results.candidates[0].x,
-            latitude: r.response.results.candidates[0].y,
-            accuracy: r.response.results.candidates[0].score
-          }
-        } catch(e) {
-          return { longitude: '', latitude: '', accuracy: '' };
+          return { longitude: '', latitude: '', accuracy: 'failure' };
         }
       }
     }
@@ -68,126 +34,14 @@ function onOpen() {
       name: 'Geocode Addresses',
       functionName: 'gcDialog'
   }, {
-      name: 'Export GeoJSON',
-      functionName: 'gjDialog'
-  }, {
       name: 'Help',
       functionName: 'helpSite'
   }]);
 }
 
-// UI to set up GeoJSON export
-function gjDialog() {
-  var headersRaw = getHeaders(sheet, activeRange, 1);
-
-  // Create a new UI
-  var app = UiApp.createApplication()
-    .setTitle('Export GeoJSON')
-    .setStyleAttribute('width', '460')
-    .setStyleAttribute('padding', '20');
-
-  // Create a grid to hold the form
-  var grid = app.createGrid(4, 2);
-
-  // Add form elements to the grid
-  grid.setWidget(0, 0, app.createLabel('Unique ID:'));
-  grid.setWidget(0, 1, app.createListBox().setName('idBox').setId('idBox'));
-  grid.setWidget(1, 0, app.createLabel('Longitude:'));
-  grid.setWidget(1, 1, app.createListBox().setName('lonBox').setId('lonBox'));
-  grid.setWidget(2, 0, app.createLabel('Latitude:'));
-  grid.setWidget(2, 1, app.createListBox().setName('latBox').setId('latBox'));
-
-  // Set the list boxes to the header values
-  for (var i = 0; i < headersRaw.length; i++) {
-    app.getElementById('idBox').addItem(headersRaw[i]);
-    app.getElementById('lonBox').addItem(headersRaw[i]);
-    app.getElementById('latBox').addItem(headersRaw[i]);
-  }
-
-  // Create a vertical panel...
-  var panel = app.createVerticalPanel().setId('settingsPanel');
-
-  panel.add(app.createLabel(
-    'To format your spreadsheet as GeoJSON file, select the following columns:'
-  ).setStyleAttribute('margin-bottom', '20'));
-
-  // ...and add the grid to the panel
-  panel.add(grid);
-
-  // Create a button and click handler; pass in the grid object as a
-  // callback element and the handler as a click handler
-  // Identify the function b as the server click handler
-  var button = app.createButton('Export')
-      .setStyleAttribute('margin-top', '10')
-      .setId('export');
-  var handler = app.createServerClickHandler('exportGJ');
-  handler.addCallbackElement(grid);
-  button.addClickHandler(handler);
-
-  // Add the button to the panel and the panel to the application,
-  // then display the application app in the spreadsheet doc
-  grid.setWidget(3, 1, button);
-  app.add(panel);
-  ss.show(app);
-}
-
-// Handle submits by updating the settings object, calling the
-// export function, updates the UI
-function exportGJ(e) {
-  settings = {
-    id: e.parameter.idBox,
-    lon: e.parameter.lonBox,
-    lat: e.parameter.latBox
-  };
-  
-  // Update ui to show status
-  updateUi();
-  
-  // Create GeoJSON file and pass back it's filepath
-  var file = createGJFile();
-  
-  // Update ui to deliver file
-  displayFile(file);
-}
-
-function updateUi() {
-  // Create a new UI instance
-  var app = UiApp.createApplication()
-    .setTitle('Export GeoJSON')
-    .setStyleAttribute('width', '460')
-    .setStyleAttribute('padding', '20');
-
-  // Add a status message to the UI
-  app.add(app.createLabel(
-    'Exporting your file...')
-    .setStyleAttribute('margin-bottom', '10')
-    .setId('exportingLabel'));
-
-  // Show the new UI
-  ss.show(app);
-}
-
-function displayFile(file) {
-  // Create a new UI instance
-  var app = UiApp.createApplication()
-    .setTitle('Export GeoJSON')
-    .setStyleAttribute('width', '460')
-    .setStyleAttribute('padding', '20');
-  
-  // Notify the user that the file is done and in the Google Docs list
-  app.add(
-    app.createLabel('The GeoJSON file has been saved in your Google Docs List.')
-    .setStyleAttribute('margin-bottom', '10')
-  );
-
-  // And provide a link to it
-  app.add(
-    app.createAnchor('Download GeoJSON File', file.getUrl())
-    .setStyleAttribute('font-size', '150%')
-  );
-  
-  // Show the new UI
-  ss.show(app);
+// Help menu
+function helpSite() {
+  Browser.msgBox('Support available here: https://github.com/mapbox/geo-googledocs');
 }
 
 // Get headers within a sheet and range
@@ -196,22 +50,6 @@ function getHeaders(sheet, range, columnHeadersRowIndex) {
     var headersRange = sheet.getRange(columnHeadersRowIndex,
         range.getColumn(), 1, numColumns);
     return headersRange.getValues()[0];
-}
-
-// Create the GeoJSON file and returns its filepath
-function createGJFile() {
-  return DocsList.createFile(
-    (cleanCamel(ss.getName()) || 'unsaved') + '-' + Date.now() + '.geojson',
-    Utilities.jsonStringify({
-      type: 'FeatureCollection',
-      features: getRowsData(sheet, activeRange, 1)
-    })
-  );
-}
-
-// Help menu
-function helpSite() {
-  Browser.msgBox('Support available here: https://github.com/mapbox/geo-googledocs');
 }
 
 // Geocoding UI to select API and enter key
@@ -225,24 +63,12 @@ function gcDialog() {
   // Create a grid to hold the form
   var grid = app.createGrid(3, 2);
 
-  // Add form elements to the grid
-  grid.setWidget(0, 0, app.createLabel('Geocoding service:'));
-  grid.setWidget(0, 1, app.createListBox()
-    .setName('apiBox')
-    .setId('apiBox')
-    .addItem('mapquest')
-    .addItem('yahoo')
-    .addItem('cicero'));
-  grid.setWidget(1, 0, app.createLabel('API key:'));
-  grid.setWidget(1, 1, app.createTextBox().setName('keyBox').setId('keyBox'));
-
   // Create a vertical panel...
   var panel = app.createVerticalPanel().setId('geocodePanel');
 
   panel.add(app.createLabel(
     'The selected cells will be joined together and sent to a geocoding service. '
     +'New columns will be added for longitude, latitude, and accuracy score. '
-    +'Select a geocoding API and enter your API key if required:'
   ).setStyleAttribute('margin-bottom', '20'));
 
   // ...and add the grid to the panel
@@ -271,8 +97,7 @@ function geocode(e) {
       sheet = ss.getActiveSheet(),
       activeRange = ss.getActiveRange(),
       address = '',
-      api = e.parameter.apiBox,
-      key = e.parameter.keyBox,
+      api = 'mapquest',
       response = {},
       rowData = activeRange.getValues(),
       topRow = activeRange.getRow(),
@@ -326,7 +151,7 @@ function geocode(e) {
     Logger.log(testString);
     if (testString == '') {
       // Send address to query the geocoding api
-      response = getApiResponse(address, api, key);
+      response = getApiResponse(address, api);
   
       // Add responses to columns in the active spreadsheet
       try {
@@ -403,9 +228,9 @@ function closeUiGc() {
 }
 
 // Send address to api
-function getApiResponse(address, api, key) {
+function getApiResponse(address, api) {
   var geocoder = geocoders[api],
-      url = geocoder.query(encodeURI(address), encodeURI(key));
+      url = geocoder.query(encodeURI(address));
   
   // If the geocoder returns a response, parse it and return components
   // If the geocoder responds poorly or doesn't response, try again
