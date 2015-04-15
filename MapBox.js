@@ -5,25 +5,8 @@ var ss = SpreadsheetApp.getActiveSpreadsheet(),
     settings = {};
     
 var geocoders = {
-    yahoo: {
-      query: function(query, key) {
-        return 'http://where.yahooapis.com/geocode?appid=' +
-          key + '&flags=JC&q=' + query;
-      },
-      parse: function(r) {
-        try {
-          return {
-            longitude: r.ResultSet.Results[0].longitude,
-            latitude: r.ResultSet.Results[0].latitude,
-            accuracy: r.ResultSet.Results[0].quality
-          }
-        } catch(e) {
-          return { longitude: '', latitude: '', accuracy: '' };
-        }
-      }
-    },
     mapquest: {
-      query: function(query, key) {
+      query: function(query) {
         return 'http://open.mapquestapi.com/nominatim/v1/search?format=json&limit=1&q=' + query;
       },
       parse: function(r) {
@@ -34,24 +17,7 @@ var geocoders = {
             accuracy: r[0].type
           }
         } catch(e) {
-          return { longitude: '', latitude: '', accuracy: '' };
-        }
-      }
-    },
-    cicero: {
-      query: function(query, key) {
-        return 'https://cicero.azavea.com/v3.1/legislative_district?format=json&key=' + 
-          key + '&search_loc=' + query; 
-      },
-      parse: function(r) {
-        try {
-          return {
-            longitude: r.response.results.candidates[0].x,
-            latitude: r.response.results.candidates[0].y,
-            accuracy: r.response.results.candidates[0].score
-          }
-        } catch(e) {
-          return { longitude: '', latitude: '', accuracy: '' };
+          return { longitude: '', latitude: '', accuracy: 'failure' };
         }
       }
     }
@@ -230,11 +196,7 @@ function gcDialog() {
   grid.setWidget(0, 1, app.createListBox()
     .setName('apiBox')
     .setId('apiBox')
-    .addItem('mapquest')
-    .addItem('yahoo')
-    .addItem('cicero'));
-  grid.setWidget(1, 0, app.createLabel('API key:'));
-  grid.setWidget(1, 1, app.createTextBox().setName('keyBox').setId('keyBox'));
+    .addItem('mapquest'));
 
   // Create a vertical panel...
   var panel = app.createVerticalPanel().setId('geocodePanel');
@@ -242,7 +204,6 @@ function gcDialog() {
   panel.add(app.createLabel(
     'The selected cells will be joined together and sent to a geocoding service. '
     +'New columns will be added for longitude, latitude, and accuracy score. '
-    +'Select a geocoding API and enter your API key if required:'
   ).setStyleAttribute('margin-bottom', '20'));
 
   // ...and add the grid to the panel
