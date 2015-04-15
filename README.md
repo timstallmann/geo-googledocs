@@ -1,3 +1,7 @@
+*This is a slimmed-down version of the original Mapbox code, with support only for Mapquest Nominatim and no API Key prompt*
+
+# TODO: Edit this further
+
 # Geo for Google Docs
 
 Geo for Google Docs is a set of tools that make it easy to use data from
